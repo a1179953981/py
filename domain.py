@@ -96,9 +96,9 @@ def ding(hostname):
         "markdown": {
             "title": "域名到期预警",
             "text": "#### 域名到期预警\n" +
-                    "> 9度，西北风1级，空气良89，相对温度73%\n\n" +
-                    "> ![screenshot](https://gw.alicdn.com/tfs/TB1ut3xxbsrBKNjSZFpXXcXhFXa-846-786.png)\n" +
-                    "> ###### 10点20分发布 [天气](http://www.thinkpage.cn/) \n"
+                    "> 警报域名:" + hostname + "\n\n"
+                                           "> 到期时间:" + "date" + "\n\n"
+                                                                "> 剩余天数:" + "day" + "\n\n"
         },
         "at": {
             "isAtAll": False,
@@ -115,7 +115,8 @@ def ding(hostname):
 
 
 # test()
-# ding("lento.mobi")
+ding("lento.mobi")
+
 
 # 遍历指定目录，显示目录下的所有文件名
 
@@ -147,21 +148,20 @@ def eachFile(filepath):
 #     child = os.path.join('%s%s' % (filepath, allDir))
 #     print (child)# .decode('gbk')是解决中文显示乱码问题
 
-eachFile('C:\\Users\\yonrun\\Desktop\\conf')
+# eachFile(r'C:\Users\yonrun1001\Downloads\conf')
 
 
-def rs():
-    f = eachFile(r'C:\Users\yonrun\Desktop\conf')
-    fileOutPath = 'F:\\out.txt'
+def rs(root):
+    domain = set();
+    f = eachFile(root)
+    # fileOutPath = 'E:\\out.txt'
     n = 0
     for i in f:
         n += 1
         print("正在读取第%d个文件,文件路径：%s" % (n, i))
         with open(i, 'r', encoding='UTF-8') as fin:
             encoding = 'UTF-8'
-            #print(fin.read())
-
-
+            # print(fin.read())
             keywords = fin.readlines()
             # '(.*)server_name(.*);'
             # PATTERN = re.compile(r'(.*)server_name([\s\S;])',re.DOTALL)
@@ -171,13 +171,17 @@ def rs():
             #         print(tmp)
             # PATTERN = re.compile(r'(.*)server_name([\s\S;])',re.DOTALL)
             for item in keywords:
-                tmp = re.match("server_names",item)
-                print(item)
-                print(tmp)
-                if tmp:
-                    print(tmp.group())
-            #print(keywords)
+                # PATTERN = re.compile("([a-z]|[0-9])*.(com|net|cn|tv)")
+                tmp = re.finditer("([a-z]|[0-9])*.(com|net|cn|tv)", item)
+                # print(item)
+                # print(tmp)
+                for result in tmp:
+                    domain.add(result.group())
+                    print(result.group())
+            # print(keywords)
             fin.close()
+    print("存入", len(domain), "条域名")
+    return domain;
     #     with open(fileOutPath, 'w', encoding='utf-8') as font:
     #         print(keywords)
     #         for line in keywords:
@@ -190,5 +194,7 @@ def rs():
     #
     # print("该文件夹中包含%d个文件，已将路径存入set" % len(f))
 
-
-rs()
+# rs()
+domainSet=rs(r"C:\Users\yonrun1001\Downloads\conf")
+for domain in domainSet:
+    ding(domain)
