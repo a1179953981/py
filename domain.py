@@ -8,6 +8,8 @@ from idlelib.multicall import r
 from symbol import return_stmt
 from urllib.parse import urlencode
 import urllib.request
+
+import requests
 import xlrd
 import time
 import os
@@ -50,16 +52,9 @@ def due(hostname):
     nowapi_call = f.read()
     # print content
     a_result = json.loads(nowapi_call)
-    if a_result:
-        if a_result['success'] != '0':
-            t2 = a_result['result']['dom_expdate']
-            print(time_passed(t2))
-            return (time_passed(t2));
-        else:
-            print(a_result['msgid'] + ' ' + a_result['msg'])
-    else:
-        print('Request nowapi fail.')
-    time.sleep(3)
+    return a_result
+
+    # time.sleep(5)
 
 
 # --------------测试函数--------------------
@@ -85,7 +80,7 @@ def before_ding(hostname):
 
 
 # --------------钉钉自动告警--------------------
-def ding(hostname):
+def ding(hostname, times, days):
     webhook = "https://oapi.dingtalk.com/robot/send?access_token=0b80643a9fb64cfbe28edea2b0a528ead06ec37540e5efc458353dd163c5f35c"
     header = {
         "Content-Type": "application/json",
@@ -96,9 +91,9 @@ def ding(hostname):
         "markdown": {
             "title": "域名到期预警",
             "text": "#### 域名到期预警\n" +
-                    "> 警报域名:" + hostname + "\n\n"
-                                           "> 到期时间:" + "date" + "\n\n"
-                                                                "> 剩余天数:" + "day" + "\n\n"
+                    "> 警报域名:    " + str(hostname) + "\n\n"
+                                                    "> 到期时间:   " + str(times) + "\n\n"
+                                                                                "> 剩余天数:   " + str(days) + "\n\n"
         },
         "at": {
             "isAtAll": False,
@@ -114,8 +109,8 @@ def ding(hostname):
     opener = urllib.request.urlopen(request)
 
 
-# test()
-ding("lento.mobi")
+# # test()
+# ding("lento.mobi")
 
 
 # 遍历指定目录，显示目录下的所有文件名
@@ -170,15 +165,17 @@ def rs(root):
             #     if tmp:
             #         print(tmp)
             # PATTERN = re.compile(r'(.*)server_name([\s\S;])',re.DOTALL)
+
             for item in keywords:
                 # PATTERN = re.compile("([a-z]|[0-9])*.(com|net|cn|tv)")
-                tmp = re.finditer("([a-z]|[0-9])*.(com|net|cn|tv)", item)
+                tmp = re.finditer("(\w+)\.(co|com|net|cn|tv|me|top|fun|xyz|xin|shop|mobi|vip|info|ink|wang|sife|club|cc|online|biz|red|link|ltd|org|com.cn|net.cn|org.cn|gov.cn|name|pro|work|kim|group|tech|store|ren|pub|live|wiki|design|beer|art|luxe)$", item)
                 # print(item)
                 # print(tmp)
                 for result in tmp:
                     domain.add(result.group())
                     print(result.group())
             # print(keywords)
+
             fin.close()
     print("存入", len(domain), "条域名")
     return domain;
@@ -194,7 +191,92 @@ def rs(root):
     #
     # print("该文件夹中包含%d个文件，已将路径存入set" % len(f))
 
+
 # rs()
-domainSet=rs(r"C:\Users\yonrun1001\Downloads\conf")
+def apidata():
+    api = "https://cdn.api.baishan.com/v2/domain/list?token=d54206623dfe730a1dddf12c1f4c0552&page_size=500"
+    result = requests.get(api).json()
+    result = json.dumps(result)
+    load_data = json.loads(result)
+    data = load_data.get("data").get("list")
+    n = 0
+    s = set()
+    for i in data:
+        result2 = (i.get("domain"))
+        n = n + 1
+        print("通过api获取第%d条域名:%s" % (n, result2))
+        str = result2.split(".")
+        newstr = str[-2] + "." + str[-1]
+        print("处理后的域名为：%s" % newstr)
+        s.add(newstr)
+    print("通过api获取到的域名记录有%d条" % n)
+    print("经过清除重复处理后的记录有%d条" % len(s))
+    return s
+
+
+domainSet = rs(r"C:\Users\yonrun1001\Downloads\conf")
+domainSet = set.union(domainSet, apidata())
+domainSetlen = len(domainSet)
+print("去重处理共%d条" % domainSetlen)
+num = 0
 for domain in domainSet:
-    ding(domain)
+    # print("待处理域名==========================")
+    # print(domain)
+    num = num + 1
+    print("处理第%d条域名,共%d条:%s" % (num, domainSetlen, domain))
+    a_result = due(domain)
+    if a_result:
+
+        if a_result['success'] != '0':
+            if a_result['result']['status'] == 'WAIT_PROCESS':
+                print("%s:等待系统处理（预计两分钟后自动重试）" + domain)
+                ding(domain, "错误", "获取失败,等待系统处理")
+                continue
+                # due(hostname)
+                # time.sleep(130)
+                # 处理四次，还不成功则直接返回
+            # if a_result['msgid'] == '1000701':
+            #     print("超额，重试中,请无需关闭........"+domain)
+            #     due(domain)
+
+            if a_result['result']['status'] == 'ALREADY_WHOIS':
+                t2 = a_result['result']['dom_expdate']
+                try:
+                    t3 = int(time_passed(t2))
+                except:
+                    t3 = t2
+                if t3 < 30:
+                    ding(domain, t2, t3)
+                    print("不正常的域名:%s,已警报:到期时间为:%s,剩余天数:%s" % (domain, t2, t3))
+                    continue
+                else:
+                    print("正常的域名:%s,到期时间为:%s,剩余天数:%d" % (domain, t2, t3))
+                    continue
+
+                if a_result['result']['status'] == 'NOT_REGISTER':
+                    print("未注册域名" + domain)
+                    ding(domain, "获取失败", "获取失败,未注册域名")
+                    continue
+                if a_result['result']['status'] == 'BE_RETAINED':
+                    print("域名被保留" + domain)
+                    ding(domain, "获取错误", "获取错误,域名被保留")
+                    continue
+
+
+        else:
+            # 如果超额，70分钟后自动继续
+            if a_result['msgid'] == '1000701':
+                print("超额，程序将在70分钟后继续执行,请无需关闭........" + domain)
+                time.sleep(70 * 60)
+                due(domain)
+            if a_result['msgid'] == '10018':
+                print("获取失败,未识别的域名" + domain)
+                ding(domain, "获取错误", "获取失败,未识别的域名")
+                continue
+            print(a_result['msgid'] + ' ' + a_result['msg'] + domain)
+            print("查询失败，正在重试。。。。。。" + domain)
+            due(domain)
+    else:
+        print('Request nowapi fail.' + domain)
+        print("查询失败，正在重试。。。。。。" + domain)
+        due(domain)
